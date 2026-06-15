@@ -1,0 +1,9 @@
+flask
+flask-cors
+reportlab
+Pillow
+svglib
+supabase
+python-dotenv
+playwright
+gunicorn
