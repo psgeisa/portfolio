@@ -202,19 +202,25 @@ export default function CvPrint() {
            repete em TODAS as páginas, com os fundos do conteúdo transparentes. */
         .cv-stripe { display: none; }
         @media print {
-          @page { margin: 12mm 0; }
+          /* margin: 0 elimina os cabeçalhos e rodapés gerados pelo navegador
+             (data/hora, título da aba, URL, número de página). O espaçamento
+             interno é reposto por padding no .cv-page abaixo. */
+          @page { margin: 0; }
           html, body { margin: 0; }
           .cv-print-btn { display: none !important; }
 
-          /* Faixa fixa estendida além das margens da página para sangrar até o
-             topo e a base (margens da @page), aparecendo "colada" na borda. */
+          /* Espaçamento interno que substituiu o margin da @page. */
+          .cv-page { padding-top: 12mm; padding-bottom: 12mm; }
+
+          /* Faixa escura cobre a página inteira de borda a borda (sem sangria
+             extra, pois a @page não tem mais margens). */
           .cv-stripe {
             display: block;
             position: fixed;
             left: 0;
-            top: -14mm;
+            top: 0;
             width: 68mm;
-            height: calc(100% + 28mm);
+            height: 100%;
             z-index: 0;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
