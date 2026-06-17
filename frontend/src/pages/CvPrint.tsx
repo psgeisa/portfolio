@@ -100,6 +100,12 @@ export default function CvPrint() {
     const fixed = photoH + photoMb + parseFloat(as.paddingTop) + parseFloat(as.paddingBottom)
     const avail = mainNatural - fixed
     const gaps = box.children.length - 1
+    // CV com mais de uma página A4: na impressão a lateral fica compacta (a
+    // faixa escura preenche o resto), evitando que uma seção transborde sozinha
+    // para uma página extra. Em tela e em CV de 1 página, mantém-se esticada.
+    // (altura útil da página = A4 297mm menos as margens 12mm*2 da @page)
+    const PAGE_CONTENT_PX = ((297 - 24) * 96) / 25.4
+    box.classList.toggle('is-multipage', mainNatural > PAGE_CONTENT_PX)
     // Mede quanto a altura cresce por px de --d (≈ nº de linhas/itens afetados),
     // mantendo os gaps em zero durante a medição.
     box.style.setProperty('--ge', '0px')
@@ -221,6 +227,10 @@ export default function CvPrint() {
           /* Não deixar um título sozinho no fim da página: ele acompanha o
              conteúdo para a página seguinte. */
           .cv-page h3 { break-after: avoid; }
+
+          /* CV multipágina: lateral compacta no topo (sem o stretch da tela),
+             deixando a faixa escura preencher o restante das páginas. */
+          .cv-bal.is-multipage { --d: 0px !important; --ge: 0px !important; }
         }
       `}</style>
       <button
