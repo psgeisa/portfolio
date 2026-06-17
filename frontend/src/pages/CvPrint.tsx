@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { User, Phone, Layers, Award, Zap, GraduationCap, BookOpen, type LucideIcon } from 'lucide-react'
 import profilePhoto from '../assets/profile.png'
@@ -62,12 +62,84 @@ export default function CvPrint() {
   const { perfil = 'finops' } = useParams()
   const [searchParams] = useSearchParams()
   const [data, setData] = useState<CvData | null>(null)
+  const balanceRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     apiFetch(`/api/cv-data?perfil=${perfil}`)
       .then((res) => res.json())
       .then(setData)
   }, [perfil])
+
+  // Distribui o conteúdo da coluna lateral para acompanhar a altura da coluna
+  // branca, mantendo uma hierarquia tipográfica: a entrelinha dentro de cada
+  // bloco cresce de forma suave (acréscimo `d` por linha) e o gap entre blocos
+  // cresce R vezes mais (R*d), ficando ligeiramente maior que a entrelinha.
+  // Há um teto suave (D_MAX) no acréscimo de entrelinha; se ainda sobrar espaço
+  // (sidebar com pouco conteúdo), aceita-se uma cauda escura em vez de exagerar.
+  const balanceSidebar = useCallback(() => {
+    const box = balanceRef.current
+    const aside = box?.parentElement
+    const main = box?.closest('.cv-page')?.querySelector('main')
+    if (!box || !aside || !main || box.children.length < 2) return
+    const R = 1.5 // gap entre blocos cresce 1,5x o acréscimo de entrelinha
+    const D_MAX = 60 // teto de segurança (px) p/ casos patológicos (sidebar mínima)
+    // Altura-alvo = altura natural da coluna branca (main). Medimos pelo conteúdo
+    // dela (não pela caixa esticada do flex, que a própria sidebar inflaria,
+    // criando um laço de realimentação).
+    const extentOf = (el: Element) => {
+      const k = el.children
+      return k[k.length - 1].getBoundingClientRect().bottom - k[0].getBoundingClientRect().top
+    }
+    const ms = getComputedStyle(main)
+    const mainNatural = extentOf(main) + parseFloat(ms.paddingTop) + parseFloat(ms.paddingBottom)
+    // Parte fixa da sidebar (foto + margens + paddings) que não escala.
+    const as = getComputedStyle(aside)
+    const photo = aside.querySelector('img')
+    const photoMb = photo ? parseFloat(getComputedStyle(photo).marginBottom) : 0
+    const photoH = photo ? photo.offsetHeight : 0
+    const fixed = photoH + photoMb + parseFloat(as.paddingTop) + parseFloat(as.paddingBottom)
+    const avail = mainNatural - fixed
+    const gaps = box.children.length - 1
+    // Mede quanto a altura cresce por px de --d (≈ nº de linhas/itens afetados),
+    // mantendo os gaps em zero durante a medição.
+    box.style.setProperty('--ge', '0px')
+    box.style.setProperty('--d', '0px')
+    const h0 = extentOf(box)
+    box.style.setProperty('--d', '10px')
+    const perPx = (extentOf(box) - h0) / 10
+    // H(d) = h0 + d*perPx (linhas) + gaps*R*d (blocos). Resolve d para encher avail.
+    const denom = perPx + gaps * R
+    let d = denom > 0 ? (avail - h0) / denom : 0
+    if (!Number.isFinite(d) || d < 0) d = 0
+    d = Math.min(d, D_MAX) // se passar do teto, deixa cauda em vez de exagerar
+    box.style.setProperty('--d', `${d}px`)
+    box.style.setProperty('--ge', `${R * d}px`)
+  }, [])
+
+  // Recalcula a distribuição da coluna lateral sempre que os dados mudam (após
+  // as imagens carregarem, pois a foto define a altura) e em redimensionamentos.
+  useLayoutEffect(() => {
+    if (!data) return
+    let cancelled = false
+    const run = () => requestAnimationFrame(() => !cancelled && balanceSidebar())
+    const images = Array.from(document.images)
+    Promise.all(
+      images.map((img) =>
+        img.complete
+          ? Promise.resolve()
+          : new Promise<void>((resolve) => {
+              img.onload = () => resolve()
+              img.onerror = () => resolve()
+            })
+      )
+    ).then(() => !cancelled && run())
+    run()
+    window.addEventListener('resize', run)
+    return () => {
+      cancelled = true
+      window.removeEventListener('resize', run)
+    }
+  }, [data, balanceSidebar])
 
   // Abre o diálogo de impressão automaticamente quando chamado com ?print=1,
   // após os dados e as imagens carregarem.
@@ -86,12 +158,15 @@ export default function CvPrint() {
     )
     let cancelled = false
     ready.then(() => {
-      if (!cancelled) setTimeout(() => window.print(), 300)
+      if (!cancelled) {
+        balanceSidebar()
+        setTimeout(() => window.print(), 300)
+      }
     })
     return () => {
       cancelled = true
     }
-  }, [data, searchParams])
+  }, [data, searchParams, balanceSidebar])
 
   if (!data) return null
 
@@ -105,7 +180,16 @@ export default function CvPrint() {
 
   return (
     <>
-      <style>{`html, body { background: #fff; } @media print { .cv-print-btn { display: none !important; } }`}</style>
+      <style>{`
+        html, body { background: #fff; }
+        @media print { .cv-print-btn { display: none !important; } }
+        /* Distribuição da coluna lateral (valores calculados em balanceSidebar):
+           --d = acréscimo de entrelinha por linha; --ge = acréscimo de gap entre
+           blocos (= R*d, um pouco maior). Bases fixas preservam a hierarquia. */
+        .cv-bal > * + * { margin-top: calc(0.5rem + var(--ge, 0px)); }
+        .cv-bal .cv-body { line-height: calc(15.4px + var(--d, 0px)); }
+        .cv-bal .cv-body .cv-rows > * + * { margin-top: calc(0.375rem + var(--d, 0px)); }
+      `}</style>
       <button
         type="button"
         onClick={() => window.print()}
@@ -114,13 +198,16 @@ export default function CvPrint() {
         Salvar PDF / Imprimir
       </button>
       <div className="cv-page mx-auto flex min-h-screen w-full max-w-[210mm] bg-white font-sans text-slate-700">
-      <aside className={asideClasses}>
+      <aside className={`${asideClasses} flex flex-col`}>
         <img
           src={profilePhoto}
           alt={data.nome}
           className="mx-auto mb-3 h-[180px] w-[180px] rounded-full border-2 border-emerald-400/50 object-cover"
         />
 
+        {/* Ocupa o espaço restante; a distribuição suave (entrelinha + gaps) é
+            aplicada via a classe cv-bal e o fator --k calculado em balanceSidebar. */}
+        <div ref={balanceRef} className="cv-bal flex flex-1 flex-col">
         <CvSection title="Sobre mim" icon={User}>
           <p>{data.idade} anos</p>
           {data.resumo_formacao && <p>{data.resumo_formacao}</p>}
@@ -151,7 +238,7 @@ export default function CvPrint() {
         </CvSection>
 
         <CvSection title="Certificações" icon={Award}>
-          <div className="space-y-1.5">
+          <div className="cv-rows">
             {data.certificacoes
               .filter((cert) => cert.instituicao !== 'LinkedIn')
               .map((cert, i) => (
@@ -168,7 +255,7 @@ export default function CvPrint() {
                 <Zap size={10} className="shrink-0" />
                 Certificações rápidas
               </p>
-              <div className="space-y-1.5 pl-3">
+              <div className="cv-rows pl-3">
                 {data.certificacoes
                   .filter((cert) => cert.instituicao === 'LinkedIn')
                   .map((cert, i) => (
@@ -183,7 +270,7 @@ export default function CvPrint() {
         </CvSection>
 
         <CvSection title="Educação" icon={GraduationCap}>
-          <div className="space-y-1.5">
+          <div className="cv-rows">
             {data.educacao
               .filter((edu) => edu.categoria !== 'curso')
               .map((edu, i) => (
@@ -200,7 +287,7 @@ export default function CvPrint() {
                 <BookOpen size={10} className="shrink-0" />
                 Cursos
               </p>
-              <div className="space-y-1.5 pl-3">
+              <div className="cv-rows pl-3">
                 {data.educacao
                   .filter((edu) => edu.categoria === 'curso')
                   .map((edu, i) => (
@@ -213,6 +300,7 @@ export default function CvPrint() {
             </>
           )}
         </CvSection>
+        </div>
       </aside>
 
       <main className="flex-1 px-7 py-6">
@@ -279,7 +367,7 @@ export default function CvPrint() {
           <h3 className="mb-1.5 text-[12px] font-semibold uppercase tracking-normal leading-none text-slate-700">
             Habilidades
           </h3>
-          <div className="space-y-1.5">
+          <div className="cv-rows">
             {data.habilidades_grupos.map((group) => (
               <div key={group.title} className="break-inside-avoid">
                 <p className="mb-0.5 text-[10px] font-bold text-slate-700">{group.title}:</p>
@@ -340,12 +428,12 @@ function CvSection({
   children: React.ReactNode
 }) {
   return (
-    <div className="mb-3 break-inside-avoid">
+    <div className="break-inside-avoid">
       <h3 className="mb-1 flex items-center gap-1 text-[12px] font-semibold uppercase tracking-normal leading-none text-slate-700">
         {Icon && <Icon size={11} className="shrink-0" />}
         {title}
       </h3>
-      <div className="pl-3 text-[11px] leading-snug text-slate-600">{children}</div>
+      <div className="cv-body pl-3 text-[11px] text-slate-600">{children}</div>
     </div>
   )
 }
