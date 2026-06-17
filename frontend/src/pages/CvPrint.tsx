@@ -255,7 +255,7 @@ export default function CvPrint() {
                 </p>
                 {exp.periodo && (
                   <p className="text-[11px] italic lowercase text-slate-500">
-                    {exp.periodo.includes('ATUAL') ? 'Atuando' : exp.periodo}
+                    {formatPeriodo(exp)}
                   </p>
                 )}
                 {exp.enriquecimento?.trajetoria && (
@@ -315,6 +315,19 @@ function formatCargo(cargo?: string, funcao?: string) {
   const override = CARGO_OVERRIDES[`${cargo?.trim()}|${funcao?.trim()}`]
   if (override) return override
   return [cargo, funcao].filter(Boolean).join(' — ')
+}
+
+// Períodos marcados como "ATUAL" (experiências extras do perfil) que devem
+// exibir um intervalo fixo em vez de "Atuando", por título de cargo.
+const PERIODO_OVERRIDES: Record<string, string> = {
+  'Administrative Assistant': '2019',
+  'Project Assistant': 'ABR/2018 - MAR/2019',
+  'Contract Analyst': 'ABR/2017 - MAR/2018',
+}
+
+function formatPeriodo(exp: Experiencia) {
+  if (!exp.periodo.includes('ATUAL')) return exp.periodo
+  return PERIODO_OVERRIDES[formatCargo(exp.cargo, exp.funcao)] ?? 'Atuando'
 }
 
 function CvSection({
