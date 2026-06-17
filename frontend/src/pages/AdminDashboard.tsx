@@ -10,7 +10,7 @@ import FinOpsContent from '../components/finops/FinOpsContent'
 import DevContent from '../components/dev/DevContent'
 import DadosContent from '../components/dados/DadosContent'
 import GenericProfileContent from '../components/generic/GenericProfileContent'
-import { apiFetch, apiUrl } from '../lib/api'
+import { apiFetch } from '../lib/api'
 
 type Block = {
   key: string
@@ -379,7 +379,7 @@ export default function AdminDashboard() {
                     {Object.keys(cvData?.perfis || {}).map((perfil) => (
                       <a
                         key={perfil}
-                        href={apiUrl(`/api/cv?perfil=${perfil}`)}
+                        href={`/cv/${perfil}?print=1`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-white/20 hover:text-white"

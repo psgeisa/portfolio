@@ -1,6 +1,5 @@
 from datetime import date
 from functools import wraps
-from io import BytesIO
 import base64
 import hashlib
 import hmac
@@ -12,7 +11,7 @@ from urllib import error as urlerror
 from urllib import request as urlrequest
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 import content
@@ -391,25 +390,6 @@ def cv_data_json():
         "certificacoes": certificacoes,
         "educacao": educacao,
     })
-
-
-@app.route("/api/cv")
-def cv():
-    perfil = request.args.get("perfil", "finops")
-    frontend_base = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173")
-    url = f"{frontend_base}/cv/{perfil}"
-
-    from playwright.sync_api import sync_playwright
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page()
-        page.goto(url, wait_until="networkidle")
-        pdf_bytes = page.pdf(format="A4", print_background=True, margin={"top": "0", "bottom": "0", "left": "0", "right": "0"})
-        browser.close()
-
-    buffer = BytesIO(pdf_bytes)
-    return send_file(buffer, mimetype="application/pdf", as_attachment=False, download_name="curriculo-geisa-dos-reis.pdf")
 
 
 def text_preview(value, limit=900):

@@ -5,5 +5,4 @@ Pillow
 svglib
 supabase
 python-dotenv
-playwright
 gunicorn

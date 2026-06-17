@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { User, Phone, Layers, Award, Zap, GraduationCap, BookOpen, type LucideIcon } from 'lucide-react'
 import profilePhoto from '../assets/profile.png'
 import { apiFetch } from '../lib/api'
@@ -60,6 +60,7 @@ interface CvData {
 
 export default function CvPrint() {
   const { perfil = 'finops' } = useParams()
+  const [searchParams] = useSearchParams()
   const [data, setData] = useState<CvData | null>(null)
 
   useEffect(() => {
@@ -67,6 +68,30 @@ export default function CvPrint() {
       .then((res) => res.json())
       .then(setData)
   }, [perfil])
+
+  // Abre o diálogo de impressão automaticamente quando chamado com ?print=1,
+  // após os dados e as imagens carregarem.
+  useEffect(() => {
+    if (!data || searchParams.get('print') !== '1') return
+    const images = Array.from(document.images)
+    const ready = Promise.all(
+      images.map((img) =>
+        img.complete
+          ? Promise.resolve()
+          : new Promise<void>((resolve) => {
+              img.onload = () => resolve()
+              img.onerror = () => resolve()
+            })
+      )
+    )
+    let cancelled = false
+    ready.then(() => {
+      if (!cancelled) setTimeout(() => window.print(), 300)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [data, searchParams])
 
   if (!data) return null
 
@@ -80,7 +105,14 @@ export default function CvPrint() {
 
   return (
     <>
-      <style>{`html, body { background: #fff; }`}</style>
+      <style>{`html, body { background: #fff; } @media print { .cv-print-btn { display: none !important; } }`}</style>
+      <button
+        type="button"
+        onClick={() => window.print()}
+        className="cv-print-btn fixed right-4 top-4 z-50 inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 py-1.5 text-[13px] font-medium text-white shadow-lg transition-colors hover:bg-emerald-500"
+      >
+        Salvar PDF / Imprimir
+      </button>
       <div className="cv-page mx-auto flex min-h-screen w-full max-w-[210mm] bg-white font-sans text-slate-700">
       <aside className={asideClasses}>
         <img
