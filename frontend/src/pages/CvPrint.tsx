@@ -177,18 +177,51 @@ export default function CvPrint() {
     : isDev
       ? 'w-[68mm] shrink-0 bg-[#0a0c10] px-6 py-6 text-slate-300 [&_.text-slate-700]:text-white [&_.text-slate-600]:text-slate-400 [&_.text-emerald-600]:text-emerald-400 [&_.border-emerald-400\\/50]:border-emerald-400/40'
       : 'w-[68mm] shrink-0 bg-neutral-800 px-6 py-6 text-slate-200 [&_.text-slate-700]:text-white [&_.text-slate-600]:text-slate-300 [&_.text-emerald-600]:text-emerald-400'
+  // Cor da faixa lateral usada na impressão (mesma cor de fundo do aside).
+  const stripeColor = isFinops ? '#1b2733' : isDev ? '#0a0c10' : '#262626'
 
   return (
     <>
       <style>{`
         html, body { background: #fff; }
-        @media print { .cv-print-btn { display: none !important; } }
         /* Distribuição da coluna lateral (valores calculados em balanceSidebar):
            --d = acréscimo de entrelinha por linha; --ge = acréscimo de gap entre
            blocos (= R*d, um pouco maior). Bases fixas preservam a hierarquia. */
         .cv-bal > * + * { margin-top: calc(0.5rem + var(--ge, 0px)); }
         .cv-bal .cv-body { line-height: calc(15.4px + var(--d, 0px)); }
         .cv-bal .cv-body .cv-rows > * + * { margin-top: calc(0.375rem + var(--d, 0px)); }
+
+        /* Faixa escura da coluna lateral. Em tela fica escondida (o próprio aside
+           tem o fundo); na impressão vira um elemento fixo, que o navegador
+           repete em TODAS as páginas, com os fundos do conteúdo transparentes. */
+        .cv-stripe { display: none; }
+        @media print {
+          @page { margin: 12mm 0; }
+          html, body { margin: 0; }
+          .cv-print-btn { display: none !important; }
+
+          /* Faixa fixa estendida além das margens da página para sangrar até o
+             topo e a base (margens da @page), aparecendo "colada" na borda. */
+          .cv-stripe {
+            display: block;
+            position: fixed;
+            left: 0;
+            top: -14mm;
+            width: 68mm;
+            height: calc(100% + 28mm);
+            z-index: 0;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          /* Conteúdo acima da faixa; fundos transparentes para ela aparecer e o
+             branco vir do papel (com o espaçamento da @page só na parte branca). */
+          .cv-page { position: relative; z-index: 1; background: transparent !important; min-height: 0 !important; }
+          aside { background: transparent !important; }
+
+          /* Não deixar um título sozinho no fim da página: ele acompanha o
+             conteúdo para a página seguinte. */
+          .cv-page h3 { break-after: avoid; }
+        }
       `}</style>
       <button
         type="button"
@@ -197,6 +230,7 @@ export default function CvPrint() {
       >
         Salvar PDF / Imprimir
       </button>
+      <div className="cv-stripe" aria-hidden="true" style={{ background: stripeColor }} />
       <div className="cv-page mx-auto flex min-h-screen w-full max-w-[210mm] bg-white font-sans text-slate-700">
       <aside className={`${asideClasses} flex flex-col`}>
         <img
