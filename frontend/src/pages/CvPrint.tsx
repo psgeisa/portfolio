@@ -251,7 +251,7 @@ export default function CvPrint() {
                   </p>
                 )}
                 <p className="text-[11px] font-bold text-slate-700">
-                  {[exp.cargo, exp.funcao].filter(Boolean).join(' — ')}
+                  {formatCargo(exp.cargo, exp.funcao)}
                 </p>
                 {exp.periodo && (
                   <p className="text-[11px] italic lowercase text-slate-500">
@@ -301,6 +301,20 @@ export default function CvPrint() {
       </div>
     </>
   )
+}
+
+// Títulos em português (cargo — funcao) que devem aparecer traduzidos nos CVs.
+const CARGO_OVERRIDES: Record<string, string> = {
+  'Analista|Dev': 'Data Analyst',
+  'Operador de serviços|Operadora': 'Contract Analyst',
+  'Assistente de Projetos|Assistente de Projetos': 'Project Assistant',
+  'Secretária|Dev': 'Administrative Assistant',
+}
+
+function formatCargo(cargo?: string, funcao?: string) {
+  const override = CARGO_OVERRIDES[`${cargo?.trim()}|${funcao?.trim()}`]
+  if (override) return override
+  return [cargo, funcao].filter(Boolean).join(' — ')
 }
 
 function CvSection({
