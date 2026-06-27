@@ -1,15 +1,11 @@
-import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download } from 'lucide-react'
+import { Download, Eye, LogOut, Save, Send } from 'lucide-react'
 import FieldEditor from '../components/admin/FieldEditor'
 import { EditContext } from '../hooks/editContext'
 import { SiteDataOverrideContext } from '../hooks/siteDataContext'
 import { getAt, setAt, removeAt, insertAt, type PathKey } from '../lib/pathUtils'
-import FinOpsContent from '../components/finops/FinOpsContent'
-import DevContent from '../components/dev/DevContent'
-import DadosContent from '../components/dados/DadosContent'
-import GenericProfileContent from '../components/generic/GenericProfileContent'
+import HomeExperience, { type PerfilData } from '../components/home/HomeExperience'
 import { apiFetch } from '../lib/api'
 
 type Block = {
@@ -25,17 +21,12 @@ const BASE_BLOCKS: Block[] = [
   { key: 'dados', label: 'Data Science' },
 ]
 
-const PAGE_COMPONENTS: Record<string, React.ComponentType> = {
-  finops: FinOpsContent,
-  dev: DevContent,
-  dados: DadosContent,
-}
-
 export default function AdminDashboard() {
   const [site, setSite] = useState<any>(null)
   const [draft, setDraft] = useState<any>(null)
   const [cvData, setCvData] = useState<any>(null)
-  const [selected, setSelected] = useState<string | null>(null)
+  const [profileData, setProfileData] = useState<PerfilData | null>(null)
+  const [selected, setSelected] = useState<string>('__about')
   const [status, setStatus] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [aiLoading, setAiLoading] = useState<string | null>(null)
@@ -54,14 +45,16 @@ export default function AdminDashboard() {
         return
       }
 
-      const [published, draftData, cvBlock] = await Promise.all([
+      const [published, draftData, cvBlock, publicProfile] = await Promise.all([
         apiFetch('/api/content/site').then((res) => (res.ok ? res.json() : null)),
         apiFetch('/api/content/site_draft').then((res) => (res.ok ? res.json() : null)),
         apiFetch('/api/content/cv_data').then((res) => (res.ok ? res.json() : null)),
+        apiFetch('/api/perfil').then((res) => (res.ok ? res.json() : null)),
       ])
       setSite(published || {})
       setDraft(draftData || published || {})
       setCvData(cvBlock || {})
+      setProfileData(publicProfile)
       setLoading(false)
     }
 
@@ -251,7 +244,29 @@ export default function AdminDashboard() {
   if (loading) return <main className="p-10 text-slate-300">Carregando...</main>
 
   const currentLabel = blocks.find((b) => b.key === selected)?.label
-  const PageComponent = selected ? PAGE_COMPONENTS[selected] : null
+  const previewProfiles = profileData
+    ? Object.fromEntries(
+        [
+          ...new Set([
+            ...Object.keys(profileData.perfis || {}),
+            ...Object.keys(draft?.perfis || {}),
+          ]),
+        ].map((key) => [
+            key,
+            {
+              ...(profileData.perfis?.[key] || {}),
+              ...(draft?.perfis?.[key] || {}),
+            },
+          ]),
+      )
+    : {}
+  const previewData: PerfilData | null = profileData
+    ? {
+        ...profileData,
+        ordem: draft?.ordem || profileData.ordem,
+        perfis: previewProfiles,
+      }
+    : null
 
   const editCtx = {
     get: (path: PathKey[]) => getAt(draft, path),
@@ -261,92 +276,80 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#0a0c10] font-sans text-slate-100 md:flex-row">
-      <aside className="flex w-full shrink-0 flex-col gap-2 border-b border-white/5 p-4 md:w-64 md:border-b-0 md:border-r">
-        <h1 className="mb-2 text-lg font-semibold text-white">Conteúdo do site</h1>
-        {blocks.map((block) => {
-          const hidden = !!draft?.perfis?.[block.key]?.hidden
-          return (
-            <div key={block.key} className="flex items-center gap-1">
-              <button
-                onClick={() => {
-                  setStatus(null)
-                  setSelected(block.key)
-                }}
-                className={`flex-1 rounded-lg border px-4 py-2 text-left text-sm font-medium transition-colors ${
-                  selected === block.key
-                    ? 'border-emerald-400/50 bg-emerald-400/10 text-emerald-300'
-                    : 'border-white/10 text-slate-300 hover:border-white/20 hover:text-white'
-                } ${hidden ? 'opacity-50' : ''}`}
-              >
-                {block.label}
-                {hidden && <span className="ml-2 text-xs text-slate-500">(oculto)</span>}
-              </button>
-              {block.key !== '__about' && block.key !== '__cv' && (
-                <button
-                  onClick={() =>
-                    setHideConfirm({ key: block.key, label: block.label, hidden: !hidden })
-                  }
-                  title={hidden ? 'Mostrar página' : 'Ocultar página'}
-                  className="rounded-lg border border-white/10 px-2 py-2 text-sm text-slate-400 hover:border-white/20 hover:text-white"
-                >
-                  {hidden ? '🙈' : '👁'}
-                </button>
-              )}
-            </div>
-          )
-        })}
-        <button
-          onClick={handleAddProfile}
-          className="rounded-lg border border-dashed border-white/20 px-4 py-2 text-left text-sm font-medium text-slate-400 hover:border-emerald-400/40 hover:text-emerald-300"
-        >
-          + Adicionar perfil
-        </button>
+    <div className="min-h-screen bg-[#0a0c10] font-sans text-slate-100">
+      <header className="sticky top-0 z-[80] border-b border-white/10 bg-[#0a0c10]/95 shadow-xl shadow-black/20 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
+          <div className="mr-auto flex items-center gap-3">
+            <span className="rounded-md bg-emerald-400/10 px-2 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-300">
+              Admin
+            </span>
+            <select
+              value={selected}
+              onChange={(event) => {
+                setStatus(null)
+                setSelected(event.target.value)
+              }}
+              aria-label="Tela em edição"
+              className="rounded-lg border border-white/10 bg-[#11151c] px-3 py-2 text-sm font-medium text-slate-200 outline-none focus:border-emerald-400/50"
+            >
+              {blocks.map((block) => (
+                <option key={block.key} value={block.key}>
+                  {block.label}{draft?.perfis?.[block.key]?.hidden ? ' (oculto)' : ''}
+                </option>
+              ))}
+            </select>
+            <span className="hidden items-center gap-1.5 text-xs text-slate-500 sm:inline-flex">
+              <Eye size={14} />
+              Prévia em tempo real
+            </span>
+          </div>
 
-        <div className="mt-auto">
+          {status && <span className="w-full text-xs text-slate-400 sm:w-auto sm:text-sm">{status}</span>}
+          {selected !== '__about' && selected !== '__cv' && (
+            <button
+              onClick={() => {
+                const hidden = !!draft?.perfis?.[selected]?.hidden
+                setHideConfirm({ key: selected, label: currentLabel || selected, hidden: !hidden })
+              }}
+              className="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:border-white/20 hover:text-white"
+            >
+              {draft?.perfis?.[selected]?.hidden ? 'Mostrar página' : 'Ocultar página'}
+            </button>
+          )}
+          <button
+            onClick={handleAddProfile}
+            className="rounded-lg border border-dashed border-white/20 px-3 py-2 text-sm text-slate-300 hover:border-emerald-400/40 hover:text-emerald-300"
+          >
+            + Perfil
+          </button>
+          <button
+            onClick={handleSave}
+            className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm font-medium text-slate-200 hover:border-white/20 hover:text-white"
+          >
+            <Save size={15} />
+            {selected === '__cv' ? 'Salvar dados privados' : 'Salvar'}
+          </button>
+          {selected !== '__cv' && (
+            <button
+              onClick={handlePublish}
+              className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-sm font-medium text-emerald-300 hover:border-emerald-400/50 hover:bg-emerald-400/15"
+            >
+              <Send size={15} />
+              Publicar
+            </button>
+          )}
           <button
             onClick={handleLogout}
-            className="w-full rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-400 hover:border-white/20 hover:text-slate-200"
+            title="Sair"
+            className="rounded-lg border border-white/10 p-2 text-slate-400 hover:border-white/20 hover:text-white"
           >
-            Sair
+            <LogOut size={17} />
           </button>
         </div>
-      </aside>
+      </header>
 
-      <main className="relative flex-1 overflow-y-auto">
-        {!selected ? (
-          <p className="p-8 text-sm text-slate-400">Escolha um bloco no menu à esquerda para editar.</p>
-        ) : (
-          <>
-            <div className="sticky top-0 z-50 flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#0a0c10]/95 px-4 py-3 backdrop-blur sm:px-6">
-              <span className="text-sm font-semibold text-white">{currentLabel}</span>
-              <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-                {status && <span className="text-sm text-slate-400">{status}</span>}
-                <button
-                  onClick={handleSave}
-                  className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-white/20 hover:text-white"
-                >
-                  {selected === '__cv' ? 'Salvar dados privados' : 'Salvar'}
-                </button>
-                {selected !== '__cv' && (
-                  <button
-                    onClick={handlePublish}
-                    className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-300 transition-colors hover:border-emerald-400/50 hover:bg-emerald-400/15"
-                  >
-                    Publicar
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {selected === '__about' ? (
-              <div className="mx-auto max-w-4xl px-8 py-8">
-                <FieldEditor
-                  value={{ ordem: draft.ordem || [], perfis: draft.perfis || {} }}
-                  onChange={(v) => setDraft({ ...draft, ordem: v.ordem, perfis: v.perfis })}
-                />
-              </div>
-            ) : selected === '__cv' ? (
+      <main>
+        {selected === '__cv' ? (
               <div className="mx-auto max-w-5xl px-8 py-8">
 
                 <div className="mb-6 rounded-xl border border-white/10 bg-white/[0.03] p-5">
@@ -467,14 +470,21 @@ export default function AdminDashboard() {
 
                 <FieldEditor value={cvData || {}} onChange={setCvData} />
               </div>
-            ) : (
-              <EditContext.Provider value={editCtx}>
-                <SiteDataOverrideContext.Provider value={draft}>
-                  {PageComponent ? <PageComponent /> : <GenericProfileContent profileKey={selected} />}
-                </SiteDataOverrideContext.Provider>
-              </EditContext.Provider>
-            )}
-          </>
+        ) : previewData ? (
+          <EditContext.Provider value={editCtx}>
+            <SiteDataOverrideContext.Provider value={draft}>
+              <HomeExperience
+                dados={previewData}
+                ativo={selected === '__about' ? 'sobre' : selected}
+                onAtivoChange={(key) => {
+                  setStatus(null)
+                  setSelected(key === 'sobre' ? '__about' : key)
+                }}
+              />
+            </SiteDataOverrideContext.Provider>
+          </EditContext.Provider>
+        ) : (
+          <p className="p-8 text-sm text-slate-400">Não foi possível carregar a prévia do site.</p>
         )}
       </main>
 

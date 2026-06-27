@@ -5,12 +5,13 @@ import FieldEditor from './FieldEditor'
 
 type Props = {
   path: PathKey[]
+  value?: any
   removable?: boolean
   children: ReactNode
   label?: string
 }
 
-export function Editable({ path, removable, children, label }: Props) {
+export function Editable({ path, value, removable, children, label }: Props) {
   const edit = useEdit()
   const [open, setOpen] = useState(false)
 
@@ -60,7 +61,7 @@ export function Editable({ path, removable, children, label }: Props) {
             </button>
           </div>
           <div className="max-h-[60vh] overflow-y-auto">
-            <FieldEditor value={edit.get(path)} onChange={(v) => edit.set(path, v)} />
+            <FieldEditor value={edit.get(path) ?? value} onChange={(v) => edit.set(path, v)} />
           </div>
         </div>
       )}
